@@ -19,6 +19,14 @@ app = Flask(__name__)
 
 BASIC_URL = 'http://qmetry-data.ece.delllabs.net:8080/api/'
 
+
+def get_data(**kwargs):
+    url = BASIC_URL+'{type}?type={type}&release={release}&build={build}&about={about}'
+    my_url = url.format(**kwargs)
+    resp = requests.get(my_url)
+    return resp.json()['data']
+
+
 @app.route("/td")
 def test_data():
     kwargs = {
@@ -30,19 +38,24 @@ def test_data():
     dj = get_data(**kwargs)['columns']
 
     status_cnt = len(dj) - 1
-
-    color_list = ['seagreen', 'firebrick', 'orange', 'lightblue', 'orchid', 'black']
-    line_style = ['solid', 'solid', 'solid', 'solid', 'solid', 'dotdash']
+    status_color_lsty = {
+        'passed': ('seagreen', 'solid'),
+        'failed': ('firebrick','solid'),
+        'blocked':('orange',   'solid'),
+        'not run':('lightblue','solid'),
+        'in progress':('orchid','solid'),
+        'total':  ('black',   'dotdash')
+    }
 
     # slice off the first element
-    xax = (dj[0])[1:]
-    dates_list = [datetime.strptime(x, '%Y-%m-%d').date() for x in xax]
+    dates_list = [datetime.strptime(x, '%Y-%m-%d').date() for x in dj[0][1:]]
 
     xs = [dates_list for m in range(1, status_cnt + 1)]
     ys = [dj[i][1:] for i in range(1,status_cnt+1)]
     legend_list = [dj[j][0] for j in range(1, status_cnt+1)]
 
-
+    color_lsty_list = [[status_color_lsty[status.lower()][0], status_color_lsty[status.lower()][1]] \
+                              for status in [dj[i][0] for i in range(1, status_cnt+1)]]
     hover = HoverTool(
         tooltips=[
             ('date', '$x{%F}'),  # convert date to float
@@ -54,15 +67,14 @@ def test_data():
         },
 
         # display a tooltip whenever the cursor is vertically in line with a glyph
-        #mode='vline'
+        mode='vline'
     )
 
     p = figure(plot_height=500, title="Test Cases", plot_width=800, x_axis_type='datetime')
     p.add_tools(hover)
 
-
-    for (colr, leg, x, y, linsty) in zip(color_list, legend_list, xs, ys, line_style):
-        p.line(x, y, color=colr, legend=leg, line_dash=linsty, line_width=2)
+    for (colr_lsty, leg, x, y) in zip(color_lsty_list, legend_list, xs, ys):
+        p.line(x, y, color=colr_lsty[0], legend=leg, line_dash=colr_lsty[1], line_width=2)
 
     # multiline example too, but it does not do a legend per line
     # p.multi_line(xs=[dates_list, dates_list,dates_list, dates_list], ys=[passed, not_run, blocked, fail])
@@ -89,13 +101,6 @@ def test_data():
         css_resources=css_resources,
     )
     return encode_utf8(html)
-
-
-def get_data(**kwargs):
-    url = BASIC_URL+'{type}?type={type}&release={release}&build={build}&about={about}'
-    my_url = url.format(**kwargs)
-    resp = requests.get(my_url)
-    return resp.json()['data']
 
 
 @app.route("/<int:bars_count>")
