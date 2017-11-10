@@ -40,7 +40,23 @@ def test_data():
     ys = [passed, fail, blocked, total]
     xs = [dates_list, dates_list, dates_list, dates_list]
 
+    hover = HoverTool(
+        tooltips=[
+            ('date', '$x{%F}'),  # convert date to float
+            ('count', '$y{0}')
+        ],
+
+        formatters={
+            '$x': 'datetime',  # use 'datetime' formatter for '$x' field
+        },
+
+        # display a tooltip whenever the cursor is vertically in line with a glyph
+        #mode='vline'
+    )
+
     p = figure(plot_height=400, title="Test Cases", plot_width=750, x_axis_type='datetime')
+    p.add_tools(hover)
+
 
     for (colr, leg, x, y) in zip(color_list, legend_list, xs, ys):
         p.line(x, y, color=colr, legend=leg)
@@ -53,7 +69,7 @@ def test_data():
 
     # create data for rendering...
     p1 = p
-    p_dict = {'not_run': p1}
+    p_dict = {'test_case_data': p1}
 
     script, div = components(p_dict)
 
