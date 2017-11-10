@@ -23,8 +23,9 @@ def test_data():
     data = get_data()
     dj = data.json()
 
-    color_list = ['green', 'red', 'blue', 'black']
-    legend_list = ['Passed', 'Failed', 'Blocked', 'Total']
+    color_list = ['seagreen', 'firebrick', 'orange', 'lightblue', 'orchid', 'black']
+    legend_list = ['Passed', 'Failed', 'Blocked', 'Not Run', 'In Progress', 'Total']
+    line_style = ['solid', 'solid', 'solid', 'solid', 'solid', 'dotdash']
 
     # slice off the first element
     xax = (dj['data']['columns'][0])[1:]
@@ -37,8 +38,8 @@ def test_data():
 
     dates_list = [datetime.strptime(x, '%Y-%m-%d').date() for x in xax]
 
-    ys = [passed, fail, blocked, total]
-    xs = [dates_list, dates_list, dates_list, dates_list]
+    ys = [passed, fail, blocked, not_run, in_progress, total]
+    xs = [dates_list, dates_list, dates_list, dates_list, dates_list, dates_list]
 
     hover = HoverTool(
         tooltips=[
@@ -54,18 +55,19 @@ def test_data():
         #mode='vline'
     )
 
-    p = figure(plot_height=400, title="Test Cases", plot_width=750, x_axis_type='datetime')
+    p = figure(plot_height=500, title="Test Cases", plot_width=800, x_axis_type='datetime')
     p.add_tools(hover)
 
 
-    for (colr, leg, x, y) in zip(color_list, legend_list, xs, ys):
-        p.line(x, y, color=colr, legend=leg)
+    for (colr, leg, x, y, linsty) in zip(color_list, legend_list, xs, ys, line_style):
+        p.line(x, y, color=colr, legend=leg, line_dash=linsty, line_width=2)
 
     # multiline example too, but it does not do a legend per line
     # p.multi_line(xs=[dates_list, dates_list,dates_list, dates_list], ys=[passed, not_run, blocked, fail])
 
     p.xaxis.major_label_orientation = 3 / 4
     p.legend.location = "top_left"
+    p.legend.click_policy = "hide"
 
     # create data for rendering...
     p1 = p
