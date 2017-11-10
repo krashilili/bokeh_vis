@@ -17,29 +17,31 @@ from datetime import date, datetime
 
 app = Flask(__name__)
 
+BASIC_URL = 'http://qmetry-data.ece.delllabs.net:8080/api/'
 
 @app.route("/td")
 def test_data():
-    data = get_data()
-    dj = data.json()
+    kwargs = {
+        'type': 'timeseries',
+        'release': 'settlers',
+        'build': '100',
+        'about': 'status'
+    }
+    dj = get_data(**kwargs)['columns']
+
+    status_cnt = len(dj) - 1
 
     color_list = ['seagreen', 'firebrick', 'orange', 'lightblue', 'orchid', 'black']
-    legend_list = ['Passed', 'Failed', 'Blocked', 'Not Run', 'In Progress', 'Total']
     line_style = ['solid', 'solid', 'solid', 'solid', 'solid', 'dotdash']
 
     # slice off the first element
-    xax = (dj['data']['columns'][0])[1:]
-    fail = (dj['data']['columns'][1])[1:]
-    not_run = (dj['data']['columns'][2])[1:]
-    in_progress = (dj['data']['columns'][3])[1:]
-    blocked = (dj['data']['columns'][4])[1:]
-    passed = (dj['data']['columns'][5])[1:]
-    total = (dj['data']['columns'][6])[1:]
-
+    xax = (dj[0])[1:]
     dates_list = [datetime.strptime(x, '%Y-%m-%d').date() for x in xax]
 
-    ys = [passed, fail, blocked, not_run, in_progress, total]
-    xs = [dates_list, dates_list, dates_list, dates_list, dates_list, dates_list]
+    xs = [dates_list for m in range(1, status_cnt + 1)]
+    ys = [dj[i][1:] for i in range(1,status_cnt+1)]
+    legend_list = [dj[j][0] for j in range(1, status_cnt+1)]
+
 
     hover = HoverTool(
         tooltips=[
@@ -89,9 +91,11 @@ def test_data():
     return encode_utf8(html)
 
 
-def get_data():
-    r = requests.get('http://qmetry-data.ece.delllabs.net:8080/api/timeseries?type=timeseries&release=settlers&about=status')
-    return r
+def get_data(**kwargs):
+    url = BASIC_URL+'{type}?type={type}&release={release}&build={build}&about={about}'
+    my_url = url.format(**kwargs)
+    resp = requests.get(my_url)
+    return resp.json()['data']
 
 
 @app.route("/<int:bars_count>")
