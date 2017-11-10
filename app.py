@@ -1,19 +1,79 @@
 import random
 from bokeh.models import (HoverTool, FactorRange, Plot, LinearAxis, Grid,
-                          Range1d)
+                          Range1d, SingleIntervalTicker, DatetimeTickFormatter)
 from bokeh.models.glyphs import VBar
 from bokeh.io import show, output_file
 from bokeh.plotting import figure
 from bokeh.embed import components
-from bokeh.models.sources import ColumnDataSource
 from bokeh.resources import INLINE
 from bokeh.util.string import encode_utf8
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 import matplotlib.pyplot as plt
 import io
 import base64
+import requests
+from datetime import date, datetime
+
 
 app = Flask(__name__)
+
+
+@app.route("/td")
+def test_data():
+    data = get_data()
+    dj = data.json()
+
+    color_list = ['green', 'red', 'blue', 'black']
+    legend_list = ['Passed', 'Failed', 'Blocked', 'Total']
+
+    # slice off the first element
+    xax = (dj['data']['columns'][0])[1:]
+    fail = (dj['data']['columns'][1])[1:]
+    not_run = (dj['data']['columns'][2])[1:]
+    in_progress = (dj['data']['columns'][3])[1:]
+    blocked = (dj['data']['columns'][4])[1:]
+    passed = (dj['data']['columns'][5])[1:]
+    total = (dj['data']['columns'][6])[1:]
+
+    dates_list = [datetime.strptime(x, '%Y-%m-%d').date() for x in xax]
+
+    ys = [passed, fail, blocked, total]
+    xs = [dates_list, dates_list, dates_list, dates_list]
+
+    p = figure(plot_height=400, title="Test Cases", plot_width=750, x_axis_type='datetime')
+
+    for (colr, leg, x, y) in zip(color_list, legend_list, xs, ys):
+        p.line(x, y, color=colr, legend=leg)
+
+    # multiline example too, but it does not do a legend per line
+    # p.multi_line(xs=[dates_list, dates_list,dates_list, dates_list], ys=[passed, not_run, blocked, fail])
+
+    p.xaxis.major_label_orientation = 3 / 4
+    p.legend.location = "top_left"
+
+    # create data for rendering...
+    p1 = p
+    p_dict = {'not_run': p1}
+
+    script, div = components(p_dict)
+
+    # grab the static resources
+    js_resources = INLINE.render_js()
+    css_resources = INLINE.render_css()
+
+    html = render_template(
+        'chart.html',
+        plot_script=script,
+        plot_div=div,
+        js_resources=js_resources,
+        css_resources=css_resources,
+    )
+    return encode_utf8(html)
+
+
+def get_data():
+    r = requests.get('http://qmetry-data.ece.delllabs.net:8080/api/timeseries?type=timeseries&release=settlers&about=status')
+    return r
 
 
 @app.route("/<int:bars_count>")

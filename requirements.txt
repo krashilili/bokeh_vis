@@ -2,3 +2,4 @@ flask
 bokeh
 matplotlib
 pandas
+requests
