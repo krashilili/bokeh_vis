@@ -8,6 +8,11 @@ from bokeh.embed import components
 from bokeh.resources import INLINE
 from bokeh.util.string import encode_utf8
 from flask import Flask, render_template, jsonify
+from bokeh.models import ColumnDataSource
+from bokeh.models.widgets import DataTable, DateFormatter, TableColumn
+from random import randint
+from bokeh.layouts import widgetbox
+
 import matplotlib.pyplot as plt
 import io
 import base64
@@ -21,41 +26,17 @@ BASIC_URL = 'http://qmetry-data.ece.delllabs.net:8080/api/'
 
 
 def get_data(**kwargs):
-    url = BASIC_URL+'{type}?type={type}&release={release}&build={build}&about={about}'
+    if 'build' in kwargs:
+        url = BASIC_URL+'{type}?type={type}&release={release}&build={build}&about={about}'
+    else:
+        url = BASIC_URL + '{type}?type={type}&release={release}&about={about}'
     my_url = url.format(**kwargs)
     resp = requests.get(my_url)
-    return resp.json()['data']
+    d=resp.json()
+    return resp.json()
 
 
-@app.route("/td")
-def test_data():
-    kwargs = {
-        'type': 'timeseries',
-        'release': 'settlers',
-        'build': '100',
-        'about': 'status'
-    }
-    dj = get_data(**kwargs)['columns']
-
-    status_cnt = len(dj) - 1
-    status_color_lsty = {
-        'passed': ('seagreen', 'solid'),
-        'failed': ('firebrick','solid'),
-        'blocked':('orange',   'solid'),
-        'not run':('lightblue','solid'),
-        'in progress':('orchid','solid'),
-        'total':  ('black',   'dotdash')
-    }
-
-    # slice off the first element
-    dates_list = [datetime.strptime(x, '%Y-%m-%d').date() for x in dj[0][1:]]
-
-    xs = [dates_list for m in range(1, status_cnt + 1)]
-    ys = [dj[i][1:] for i in range(1,status_cnt+1)]
-    legend_list = [dj[j][0] for j in range(1, status_cnt+1)]
-
-    color_lsty_list = [[status_color_lsty[status.lower()][0], status_color_lsty[status.lower()][1]] \
-                              for status in [dj[i][0] for i in range(1, status_cnt+1)]]
+def lines(xs, ys, legend_list, color_lsty_list, fig_title):
     hover = HoverTool(
         tooltips=[
             ('date', '$x{%F}'),  # convert date to float
@@ -70,7 +51,7 @@ def test_data():
         mode='vline'
     )
 
-    p = figure(plot_height=500, title="Test Cases", plot_width=800, x_axis_type='datetime')
+    p = figure(plot_height=500, title=fig_title, plot_width=800, x_axis_type='datetime')
     p.add_tools(hover)
 
     for (colr_lsty, leg, x, y) in zip(color_lsty_list, legend_list, xs, ys):
@@ -97,10 +78,104 @@ def test_data():
         'chart.html',
         plot_script=script,
         plot_div=div,
+        plot_type='lines',
         js_resources=js_resources,
         css_resources=css_resources,
     )
     return encode_utf8(html)
+
+
+def data_table(data, column_names):
+    # data = dict(
+    #     dates=[date(2014, 3, i + 1) for i in range(10)],
+    #     downloads=[randint(0, 100) for i in range(10)],
+    # )
+
+    source = ColumnDataSource(data)
+
+    columns = [
+        TableColumn(field=n, title=n.upper()) for n in column_names
+        # TableColumn(field="dates", title="Date", formatter=DateFormatter()),
+        # TableColumn(field="downloads", title="Downloads"),
+    ]
+    w1 = DataTable(source=source, columns=columns, width=600, height=280)
+    script, div = components(w1)
+
+    # grab the static resources
+    js_resources = INLINE.render_js()
+    css_resources = INLINE.render_css()
+
+    html = render_template(
+        'chart.html',
+        plot_script=script,
+        plot_div=div,
+        plot_type='datatable',
+        js_resources=js_resources,
+        css_resources=css_resources,
+    )
+    return encode_utf8(html)
+
+
+@app.route("/lines/<release>/<build>")
+def test_data(release, build):
+    kwargs = {
+        'type': 'timeseries',
+        'release': '%s'%(release),
+        'build': '%s'%(build), # 100% attempt
+        'about': 'status'
+    }
+    dj = get_data(**kwargs)['data']['columns']
+
+    status_cnt = len(dj) - 1
+    status_color_lsty = {
+        'passed': ('seagreen', 'solid'),
+        'failed': ('firebrick','solid'),
+        'blocked':('orange',   'solid'),
+        'not run':('lightblue','solid'),
+        'in progress':('orchid','solid'),
+        'total':  ('black',   'dotdash')
+    }
+
+    # slice off the first element
+    dates_list = [datetime.strptime(x, '%Y-%m-%d').date() for x in dj[0][1:]]
+
+    xs = [dates_list for m in range(1, status_cnt + 1)]
+    ys = [dj[i][1:] for i in range(1,status_cnt+1)]
+    legend_list = [dj[j][0] for j in range(1, status_cnt+1)]
+
+    color_lsty_list = [[status_color_lsty[status.lower()][0], status_color_lsty[status.lower()][1]] \
+                              for status in [dj[i][0] for i in range(1, status_cnt+1)]]
+
+    lines_html = lines(xs, ys, legend_list, color_lsty_list, fig_title='Test Cases')
+
+    return lines_html
+
+
+@app.route("/datatable/<release>")
+def dt_release(release):
+    kwargs = {
+        'type':'dtable',
+        'about':'group',
+        'release':release,
+    }
+    raw_data = get_data(**kwargs)
+    groups = [ e['Group'] for e in raw_data]
+    not_run = [e['Not Run'] for e in raw_data]
+    blocked = [e['Blocked'] for e in raw_data]
+    passed = [e['Passed'] for e in raw_data]
+    failed = [e['Failed'] for e in raw_data]
+    in_prg = [e['In Progress'] for e in raw_data]
+    tlt = [e['Total'] for e in raw_data]
+    data = dict(
+        groups=groups,
+        not_run=not_run,
+        blocked=blocked,
+        passed=passed,
+        failed=failed,
+        in_progress=in_prg,
+        tlt=tlt
+    )
+    return data_table(data,column_names=data.keys())
 
 
 @app.route("/<int:bars_count>")
