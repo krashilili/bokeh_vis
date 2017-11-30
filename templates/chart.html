@@ -9,12 +9,17 @@
 
     {{ plot_script|indent(4)|safe }}
 
+
 </head>
 <body>
-    {% for key, value in plot_div.items() %}
-        {{ value|indent(4)|safe }}
-    {% endfor %}
+    {% if plot_type == 'lines'  %}
+        {% for key, value in plot_div.items() %}
+            {{ value|indent(4)|safe }}
+        {% endfor %}
+    {% endif %}
 
-
+    {% if plot_type == 'datatable' %}
+        {{ plot_div|indent(4)|safe }}
+    {% endif %}
 </body>
 </html>
