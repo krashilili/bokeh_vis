@@ -16,9 +16,9 @@
         {% for key, value in plot_div.items() %}
             {{ value|indent(4)|safe }}
         {% endfor %}
-    {% endif %}
+{#    {% endif %}#}
 
-    {% if plot_type == 'datatable' %}
+    {% else %}
         {{ plot_div|indent(4)|safe }}
     {% endif %}
 </body>

@@ -18,7 +18,7 @@ import io
 import base64
 import requests
 from datetime import date, datetime
-
+from math import pi
 
 app = Flask(__name__)
 
@@ -116,6 +116,54 @@ def data_table(data, column_names):
     return encode_utf8(html)
 
 
+def pie(percents, category):
+    # Set up plot
+    # percents = [0, 0.14, 0.22, 0.40, 0.83, 0.99, 1.0]
+    # category = ['Extreme ', 'High ', 'Light ', 'Medium ', 'Not Classified', 'Very Light ']
+    starts = [p * 2 * pi for p in percents[:-1]]
+    ends = [p * 2 * pi for p in percents[1:]]
+    colors = ['green','blue','orange','red','yellow']
+    source = ColumnDataSource(data=dict(
+
+        percents=percents,
+        category=category,
+        starts=starts,
+        colors=colors,
+        ends=ends,
+    ))
+
+    plot = figure(x_axis_location=None, y_axis_location=None, plot_width=400, plot_height=400, )
+    plot.annular_wedge(x=0, y=0, start_angle='starts', end_angle='ends', inner_radius=.4, outer_radius=.8,
+                       color="colors", alpha=1., source=source, direction='anticlock')
+    # plot.background_fill_color = None
+    plot.xgrid.grid_line_color = None
+    plot.ygrid.grid_line_color = None
+
+    hover = HoverTool()
+    hover.tooltips = [
+        ('category', '@category'),
+        ('percents', '@percents')
+    ]
+
+    # add the tooltip to plot
+    plot.add_tools(hover)
+
+    script, div = components(plot)
+    # grab the static resources
+    js_resources = INLINE.render_js()
+    css_resources = INLINE.render_css()
+
+    html = render_template(
+        'chart.html',
+        plot_script=script,
+        plot_div=div,
+        plot_type='pie',
+        js_resources=js_resources,
+        css_resources=css_resources,
+    )
+    return encode_utf8(html)
+
+
 @app.route("/lines/<release>/<build>")
 def test_data(release, build):
     kwargs = {
@@ -183,6 +231,23 @@ def chart(bars_count):
     if bars_count <= 0:
         bars_count = 1
     return render_template("chart.html", bars_count=bars_count)
+
+
+@app.route('/pie/<release>')
+def pie_tc_status(release):
+    kwargs = {
+        'type': 'pie',
+        'about': 'status',
+        'release': release,
+    }
+    raw_data = get_data(**kwargs)
+    vals = [int(v[1]) for v in raw_data.items()]
+    tlt = sum(vals)
+    percents = [v/tlt for v in vals]
+    category = [v[0] for v in raw_data.items()]
+
+    pie_html = pie(percents,category)
+    return pie_html
 
 
 @app.route('/bokeh')
